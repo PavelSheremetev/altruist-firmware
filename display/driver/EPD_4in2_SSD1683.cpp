@@ -32,6 +32,28 @@
 #ifdef DISPLAY_4IN2
 
 #include "EPD_4in2_SSD1683.h"
+#include <string.h>
+
+static UBYTE *prev_image = nullptr;
+static const UWORD PREV_IMAGE_SIZE = ((EPD_4IN2_V2_WIDTH % 8 == 0) ?
+    (EPD_4IN2_V2_WIDTH / 8) : (EPD_4IN2_V2_WIDTH / 8 + 1)) * EPD_4IN2_V2_HEIGHT;
+
+static void ensurePrevImage() {
+    if (!prev_image) {
+        prev_image = (UBYTE *)malloc(PREV_IMAGE_SIZE);
+        if (prev_image) memset(prev_image, 0xFF, PREV_IMAGE_SIZE);
+    }
+}
+
+static void resetPrevImage() {
+    ensurePrevImage();
+    if (prev_image) memset(prev_image, 0xFF, PREV_IMAGE_SIZE);
+}
+
+static void savePrevImage(const UBYTE *Image) {
+    ensurePrevImage();
+    if (prev_image && Image) memcpy(prev_image, Image, PREV_IMAGE_SIZE);
+}
 
 const unsigned char LUT_ALL[233]= {  
 // БЛОК 0 — VS0    
@@ -314,6 +336,7 @@ void EPD_4IN2_V2_Init(void)
 	EPD_4IN2_V2_SetCursor(0, 0);
 	
     EPD_4IN2_V2_ReadBusy();
+    resetPrevImage();
 }
 
 /******************************************************************************
@@ -361,6 +384,7 @@ void EPD_4IN2_V2_Init_Fast(UBYTE Mode)
 	EPD_4IN2_V2_SetCursor(0, 0);
 	
     EPD_4IN2_V2_ReadBusy();
+    resetPrevImage();
 }
 
 
@@ -397,6 +421,7 @@ void EPD_4IN2_V2_Init_4Gray(void)
 	EPD_4IN2_V2_SetWindows(0, 0, EPD_4IN2_V2_WIDTH-1, EPD_4IN2_V2_HEIGHT-1);
 	 
 	EPD_4IN2_V2_SetCursor(0, 0);
+    resetPrevImage();
 }
 /******************************************************************************
 function :	Clear screen
@@ -421,7 +446,9 @@ bool EPD_4IN2_V2_Clear(void)
             EPD_4IN2_V2_SendData(0xFF);
         }
     }
-    return EPD_4IN2_V2_TurnOnDisplay();
+    bool ok = EPD_4IN2_V2_TurnOnDisplay();
+    if (ok) resetPrevImage();
+    return ok;
 }
 
 /******************************************************************************
@@ -447,7 +474,9 @@ bool EPD_4IN2_V2_Display(UBYTE *Image)
             EPD_4IN2_V2_SendData(Image[i + j * Width]);
         }
     }
-    return EPD_4IN2_V2_TurnOnDisplay();
+    bool ok = EPD_4IN2_V2_TurnOnDisplay();
+    if (ok) savePrevImage(Image);
+    return ok;
 }
 
 /******************************************************************************
@@ -473,7 +502,9 @@ bool EPD_4IN2_V2_Display_Fast(UBYTE *Image)
             EPD_4IN2_V2_SendData(Image[i + j * Width]);
         }
     }
-    return EPD_4IN2_V2_TurnOnDisplay_Fast();
+    bool ok = EPD_4IN2_V2_TurnOnDisplay_Fast();
+    if (ok) savePrevImage(Image);
+    return ok;
 }
 
 
@@ -570,7 +601,26 @@ bool EPD_4IN2_V2_Display_4Gray(const UBYTE *Image)
 			 }
 			EPD_4IN2_V2_SendData(temp3);	
 		}
-    return EPD_4IN2_V2_TurnOnDisplay_4Gray();
+    bool ok = EPD_4IN2_V2_TurnOnDisplay_4Gray();
+    if (ok) {
+        ensurePrevImage();
+        if (prev_image) {
+            for (m = 0; m < EPD_4IN2_V2_HEIGHT; m++) {
+                for (i = 0; i < EPD_4IN2_V2_WIDTH / 8; i++) {
+                    UBYTE b = 0xFF;
+                    for (j = 0; j < 2; j++) {
+                        temp1 = Image[(m * (EPD_4IN2_V2_WIDTH / 8) + i) * 2 + j];
+                        for (k = 0; k < 4; k++) {
+                            UBYTE pair = (temp1 >> (6 - 2 * k)) & 0x03;
+                            if (pair == 0x03 || pair == 0x01) b &= ~(0x80 >> (j * 4 + k));
+                        }
+                    }
+                    prev_image[m * (EPD_4IN2_V2_WIDTH / 8) + i] = b;
+                }
+            }
+        }
+    }
+    return ok;
 }
 
 // Send partial data for partial refresh (convenience overload: full screen)
@@ -603,11 +653,11 @@ bool EPD_4IN2_V2_PartialDisplay(UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD 
 
 
 	EPD_4IN2_V2_SendCommand(0x21); 
-	EPD_4IN2_V2_SendData(0x00);
+	EPD_4IN2_V2_SendData(0x40);
 	EPD_4IN2_V2_SendData(0x00);
 
 	EPD_4IN2_V2_SendCommand(0x3C); 
-	EPD_4IN2_V2_SendData(0x80); 
+	EPD_4IN2_V2_SendData(0x05);
 
     EPD_4IN2_V2_SendCommand(0x11);	// data  entry  mode
     EPD_4IN2_V2_SendData(0x03);		// X-mode  
@@ -628,13 +678,28 @@ bool EPD_4IN2_V2_PartialDisplay(UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD 
     EPD_4IN2_V2_SendData((Ystart>>8) & 0x01);
 
     EPD_4IN2_V2_ReadBusy();
+
+    if (prev_image) {
+        EPD_4IN2_V2_SendCommand(0x26);
+        for (UWORD j = 0; j < IMAGE_COUNTER; j++) {
+            EPD_4IN2_V2_SendData(prev_image[j]);
+        }
+
+        EPD_4IN2_V2_SendCommand(0x4E);
+        EPD_4IN2_V2_SendData(Xstart & 0xff);
+        EPD_4IN2_V2_SendCommand(0x4F);
+        EPD_4IN2_V2_SendData(Ystart & 0xff);
+        EPD_4IN2_V2_SendData((Ystart>>8) & 0x01);
+    }
 	
     EPD_4IN2_V2_SendCommand(0x24);
     for (UWORD j = 0; j < IMAGE_COUNTER; j++) {
             EPD_4IN2_V2_SendData(Image[j]);
     }
-	
-	return EPD_4IN2_V2_TurnOnDisplay_Partial();
+
+    bool ok = EPD_4IN2_V2_TurnOnDisplay_Partial();
+    if (ok) savePrevImage(Image);
+    return ok;
 }
 /******************************************************************************
 function :	Enter sleep mode
