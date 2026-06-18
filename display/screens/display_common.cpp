@@ -10,7 +10,7 @@
 #include "../../defines.h"
 
 static bool epd_initialized = false;
-static DisplayMode epd_current_mode = DisplayMode::FULL; // Track current mode to avoid unnecessary re-init
+static DisplayMode epd_current_mode = DisplayMode::CLEAN_FAST; // Track current mode to avoid unnecessary re-init
 static unsigned long epd_update_count = 0;
 static unsigned int initial_full_refreshes_done = 0; // Track first 3 full refreshes after boot
 static ScreenPage last_screen = ScreenPage::MAIN; // Track last screen to detect screen changes
@@ -76,8 +76,9 @@ void epdInit(DisplayMode mode) {
     // Re-initialize only if mode changed or display is not initialized
     if (!epd_initialized || epd_current_mode != mode) {
         switch (mode) {
-            case DisplayMode::FULL:
-                // For "full" update use fast init (faster, but still clean)
+            case DisplayMode::CLEAN_FAST:
+                // Clean fast update: faster than the original full refresh,
+                // but still used as the periodic ghosting cleanup pass.
                 EPD_4IN2_V2_Init_Fast(Seconds_1S);
                 break;
             case DisplayMode::FAST:
@@ -120,7 +121,7 @@ void showImageFast(UBYTE *&BlackImage, ScreenPage currentScreen) {
     
     // First 3 updates - always full
     if (initial_full_refreshes_done < 3) {
-        epdDisplay(DisplayMode::FULL, BlackImage);
+        epdDisplay(DisplayMode::CLEAN_FAST, BlackImage);
         initial_full_refreshes_done++;
         // Reset all screen counters after initial full refreshes
         for (int i = 0; i < 9; i++) {
@@ -143,7 +144,7 @@ void showImageFast(UBYTE *&BlackImage, ScreenPage currentScreen) {
         // Counter was already incremented by epdIncrementScreenCounter() when button was pressed
         // Check if we need a full refresh
         if (period_position >= full_refresh_period) {
-            epdDisplay(DisplayMode::FULL, BlackImage);
+            epdDisplay(DisplayMode::CLEAN_FAST, BlackImage);
             resetCounterAfterFullRefresh(currentScreen);
             return;
         }
@@ -162,7 +163,7 @@ void showImageFast(UBYTE *&BlackImage, ScreenPage currentScreen) {
     bool do_full_refresh = (period_position >= full_refresh_period);
     
     if (do_full_refresh) {
-        epdDisplay(DisplayMode::FULL, BlackImage);
+        epdDisplay(DisplayMode::CLEAN_FAST, BlackImage);
         resetCounterAfterFullRefresh(currentScreen);
     } else {
         epdDisplay(DisplayMode::PARTIAL, BlackImage);
@@ -178,7 +179,7 @@ void showImageLong(UBYTE *&BlackImage) {
     EPD_4IN2_V2_Display(BlackImage);
     DEV_Delay_ms(100);
     epd_initialized = true;  // Update flag so epdInit knows display is initialized
-    epd_current_mode = DisplayMode::FULL;  // Update current mode
+    epd_current_mode = DisplayMode::CLEAN_FAST;  // Preserve legacy mode tracking behavior
     epdIncrementUpdateCount();
     // Reset all screen counters after full refresh
     for (int i = 0; i < 9; i++) {
@@ -195,7 +196,7 @@ bool epdDisplay(DisplayMode mode, UBYTE *Image) {
 
     bool ok = true;
     switch (mode) {
-        case DisplayMode::FULL:
+        case DisplayMode::CLEAN_FAST:
             ok = EPD_4IN2_V2_Display_Fast(Image);
             break;
         case DisplayMode::FAST:
@@ -212,9 +213,9 @@ bool epdDisplay(DisplayMode mode, UBYTE *Image) {
     epdIncrementUpdateCount();
 
     if (!ok) {
-        Serial.println(F("[EPD] Display stuck detected — recovering and retrying with FULL refresh"));
+        Serial.println(F("[EPD] Display stuck detected - recovering and retrying with CLEAN_FAST refresh"));
         epdRecoverFromStuck();
-        epdInit(DisplayMode::FULL);
+        epdInit(DisplayMode::CLEAN_FAST);
         EPD_4IN2_V2_Display_Fast(Image);
         epdIncrementUpdateCount();
         for (int i = 0; i < 9; i++) {
@@ -252,7 +253,7 @@ void epdRecoverFromStuck() {
     DEV_Delay_ms(100);
     
     epd_initialized = false;
-    epd_current_mode = DisplayMode::FULL;
+    epd_current_mode = DisplayMode::CLEAN_FAST;
     
     for (int i = 0; i < 9; i++) {
         period_position_per_screen[i] = 0;
@@ -268,7 +269,7 @@ void epdResetState() {
 #ifdef DISPLAY_4IN2
     // Reset display state (like on first power-on)
     epd_initialized = false;
-    epd_current_mode = DisplayMode::FULL;
+    epd_current_mode = DisplayMode::CLEAN_FAST;
     // Reset all screen counters on wake/reset
     for (int i = 0; i < 9; i++) {
         period_position_per_screen[i] = 0;

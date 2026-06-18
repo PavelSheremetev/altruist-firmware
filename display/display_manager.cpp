@@ -119,11 +119,11 @@ void DisplayManager::process(button_pressed_t &btn_press) {
 
         if (display_sleeping) {
             // Wake up from any button press (DOWN, UP, or SET)
-            // Display wake: FULL initialization and update
-            debug_outln_info(F("[EPD] Wake up from sleep - FULL init and update"));
+            // Display wake: clean-fast initialization and update
+            debug_outln_info(F("[EPD] Wake up from sleep - CLEAN_FAST init and update"));
             // Reset display state
             epdResetState();
-            // FULL initialization (like on first power-on)
+            // Hardware initialization (like on first power-on)
             EPD_4IN2_V2_Init();
             Paint_Clear(WHITE);
             display_sleeping = false;
@@ -138,7 +138,7 @@ void DisplayManager::process(button_pressed_t &btn_press) {
             // Draw and display loading screen immediately to avoid white screen flash
             Paint_SelectImage(BlackImage);
             showLoadingPage(BlackImage);
-            epdDisplay(DisplayMode::FULL, BlackImage);
+            epdDisplay(DisplayMode::CLEAN_FAST, BlackImage);
             
             return;
         }
@@ -151,10 +151,10 @@ void DisplayManager::process(button_pressed_t &btn_press) {
                 Paint_SelectImage(BlackImage);
                 Paint_Clear(WHITE);
                 Paint_DrawString_Display_Center(INTL_DISP_GOING_TO_SLEEP, &Font24, &font_24_cyrillic, &font_24_ascii, WHITE, BLACK);
-                // Full cycle: init (FULL) -> display -> clear -> sleep.
-                epdInit(DisplayMode::FULL);
+                // Clean-fast cycle: init -> display -> clear -> sleep.
+                epdInit(DisplayMode::CLEAN_FAST);
                 DEV_Delay_ms(200);
-                epdDisplay(DisplayMode::FULL, BlackImage);
+                epdDisplay(DisplayMode::CLEAN_FAST, BlackImage);
                 // Also count full clear as additional update.
                 DEV_Delay_ms(700);
                 debug_outln_info(F("[EPD] Clear screen before sleep"));
@@ -391,7 +391,7 @@ void DisplayManager::process(button_pressed_t &btn_press) {
         if (last_epd_reinit_time_ms == 0) {
             last_epd_reinit_time_ms = now_ms;
         } else if (msSince(last_epd_reinit_time_ms) >= EPD_REINIT_INTERVAL_MS) {
-            debug_outln_verbose(F("[EPD] Periodic watchdog: recovering display and scheduling FULL refresh"));
+            debug_outln_verbose(F("[EPD] Periodic watchdog: recovering display and scheduling CLEAN_FAST refresh"));
             last_epd_reinit_time_ms = now_ms;
             epdRecoverFromStuck();
             force_full_refresh = true;
@@ -666,7 +666,7 @@ draw_complete:
         if (deviceStatus.ota_in_progress || deviceStatus.ota_failed || deviceStatus.ota_success) {
             ota_display_refresh_count++;
             bool ota_do_full = (ota_display_refresh_count % OTA_FULL_REFRESH_EVERY_N == 0);
-            epdDisplay(ota_do_full ? DisplayMode::FULL : DisplayMode::PARTIAL, BlackImage);
+            epdDisplay(ota_do_full ? DisplayMode::CLEAN_FAST : DisplayMode::PARTIAL, BlackImage);
         } else {
             ota_display_refresh_count = 0;  // reset for next OTA session
         }
@@ -695,16 +695,16 @@ draw_complete:
         if (force_full_refresh) {
             force_full_refresh = false; // Reset flag after use
             epdResetPeriodPosition(); // Reset period counter after full refresh
-            debug_outln_verbose(F("[EPD] FULL refresh (watchdog/wake/main) pushed to panel"));
-            epdDisplay(DisplayMode::FULL, BlackImage);
+            debug_outln_verbose(F("[EPD] CLEAN_FAST refresh (watchdog/wake/main) pushed to panel"));
+            epdDisplay(DisplayMode::CLEAN_FAST, BlackImage);
         } else if (currentScreenID == ScreenPage::ANALYTICS &&
                    !deviceStatus.ota_in_progress && !deviceStatus.ota_failed && !deviceStatus.ota_success) {
             // Analytics-only cadence: 10 partial updates, then 1 full refresh.
             analytics_refresh_cycle_pos++;
             if (analytics_refresh_cycle_pos >= 11) {
-                debug_outln_verbose(F("[EPD] Analytics cadence: FULL (after 10 partials)"));
+                debug_outln_verbose(F("[EPD] Analytics cadence: CLEAN_FAST (after 10 partials)"));
                 epdResetPeriodPosition();
-                epdDisplay(DisplayMode::FULL, BlackImage);
+                epdDisplay(DisplayMode::CLEAN_FAST, BlackImage);
                 analytics_refresh_cycle_pos = 0;
             } else {
                 debug_outln_verbose(F("[EPD] Analytics cadence: PARTIAL"));

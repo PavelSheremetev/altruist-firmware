@@ -18,10 +18,10 @@ void drawScreenIndicator(ScreenPage currentScreen);
 // High-level API for working with display modes and update counter.
 // Lifecycle: init -> display (calls turnOn inside) -> sleep.
 
-// Initialize display in specified mode (FULL/FAST/PARTIAL/GRAY_4).
+// Initialize display in specified mode (CLEAN_FAST/FAST/PARTIAL/GRAY_4).
 void epdInit(DisplayMode mode);
 
-// Display image in specified mode (full, fast, partial, 4-gray).
+// Display image in specified mode (clean-fast, fast, partial, 4-gray).
 // Returns true on success, false if display was stuck (recovery attempted automatically).
 bool epdDisplay(DisplayMode mode, UBYTE *Image);
 
