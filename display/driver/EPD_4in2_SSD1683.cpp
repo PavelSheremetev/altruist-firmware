@@ -629,6 +629,9 @@ bool EPD_4IN2_V2_PartialDisplay(UBYTE *Image)
 // Send partial data for partial refresh (region version from original driver)
 bool EPD_4IN2_V2_PartialDisplay(UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD Xend, UWORD Yend)
 {
+    // NOTE: The current firmware calls partial refresh for the full screen.
+    // If region updates are enabled later, prev_image/Image indexing below
+    // must be adjusted to read bytes from the requested window offset.
     if((Xstart % 8 + Xend % 8 == 8 && Xstart % 8 > Xend % 8) || Xstart % 8 + Xend % 8 == 0 || (Xend - Xstart)%8 == 0)
     {
         Xstart = Xstart / 8 ;
