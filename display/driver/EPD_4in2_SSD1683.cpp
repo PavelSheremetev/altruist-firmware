@@ -648,13 +648,15 @@ bool EPD_4IN2_V2_PartialDisplay(UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD 
 	Xend -= 1;
 	Yend -= 1;	
 
+    ensurePrevImage();
+    const bool have_prev_image = (prev_image != nullptr);
 
 	EPD_4IN2_V2_SendCommand(0x21); 
-	EPD_4IN2_V2_SendData(0x40);
+	EPD_4IN2_V2_SendData(have_prev_image ? 0x40 : 0x00);
 	EPD_4IN2_V2_SendData(0x00);
 
 	EPD_4IN2_V2_SendCommand(0x3C); 
-	EPD_4IN2_V2_SendData(0x05);
+	EPD_4IN2_V2_SendData(have_prev_image ? 0x05 : 0x80);
 
     EPD_4IN2_V2_SendCommand(0x11);	// data  entry  mode
     EPD_4IN2_V2_SendData(0x03);		// X-mode  
@@ -676,7 +678,7 @@ bool EPD_4IN2_V2_PartialDisplay(UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD 
 
     EPD_4IN2_V2_ReadBusy();
 
-    if (prev_image) {
+    if (have_prev_image) {
         EPD_4IN2_V2_SendCommand(0x26);
         for (UWORD j = 0; j < IMAGE_COUNTER; j++) {
             EPD_4IN2_V2_SendData(prev_image[j]);
