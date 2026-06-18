@@ -336,7 +336,6 @@ void EPD_4IN2_V2_Init(void)
 	EPD_4IN2_V2_SetCursor(0, 0);
 	
     EPD_4IN2_V2_ReadBusy();
-    resetPrevImage();
 }
 
 /******************************************************************************
@@ -384,7 +383,6 @@ void EPD_4IN2_V2_Init_Fast(UBYTE Mode)
 	EPD_4IN2_V2_SetCursor(0, 0);
 	
     EPD_4IN2_V2_ReadBusy();
-    resetPrevImage();
 }
 
 
@@ -421,7 +419,6 @@ void EPD_4IN2_V2_Init_4Gray(void)
 	EPD_4IN2_V2_SetWindows(0, 0, EPD_4IN2_V2_WIDTH-1, EPD_4IN2_V2_HEIGHT-1);
 	 
 	EPD_4IN2_V2_SetCursor(0, 0);
-    resetPrevImage();
 }
 /******************************************************************************
 function :	Clear screen
